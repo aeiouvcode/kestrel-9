@@ -78,6 +78,7 @@
   #btnCover{left:max(18px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));width:76px;height:76px;font-size:11px}
   #btnCover.down{background:#e8850c99;border-color:var(--amber2)}
   #btnReload{right:max(30px,calc(env(safe-area-inset-right) + 12px));bottom:max(136px,calc(env(safe-area-inset-bottom) + 112px));width:58px;height:58px;font-size:10px}
+  #btnMode{right:max(30px,calc(env(safe-area-inset-right) + 12px));bottom:max(204px,calc(env(safe-area-inset-bottom) + 180px));width:58px;height:58px;font-size:9px}
   #btnScope{left:max(30px,calc(env(safe-area-inset-left) + 12px));bottom:max(116px,calc(env(safe-area-inset-bottom) + 92px));width:58px;height:58px;font-size:10px;display:none}
   #btnPause{position:absolute;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:44px;height:34px;border-radius:6px;font-size:14px}
   #ammo{position:absolute;right:max(100px,calc(env(safe-area-inset-right) + 80px));bottom:max(150px,calc(env(safe-area-inset-bottom) + 126px));
@@ -126,6 +127,7 @@
   <button class="ctl" id="btnFire">FIRE</button>
   <button class="ctl" id="btnCover">COVER</button>
   <button class="ctl" id="btnReload">RLD</button>
+  <button class="ctl" id="btnMode">AUTO</button>
   <button class="ctl" id="btnScope">SCP</button>
 </div>
 
@@ -141,7 +143,7 @@
       <button class="btn alt" id="btnArmory">Armory</button>
       <button class="btn alt" id="btnSettings">Options</button>
     </div>
-    <div class="meta" id="menuMeta">Drag to aim &middot; tap FIRE &middot; use COVER</div>
+    <div class="meta" id="menuMeta">Tap the field to shoot &middot; drag to aim &middot; COVER to duck</div>
   </div>
 </div>
 
@@ -193,8 +195,8 @@
   <div class="frame">
     <span class="stamp">Field Manual</span>
     <div class="brief-body" style="margin-top:12px">
-      <b>AIM</b> — drag anywhere on the field. The reticle follows your finger.<br><br>
-      <b>FIRE</b> — hold the FIRE button (or tap the field on desktop). Headshots drop hostiles instantly.<br><br>
+      <b>AIM</b> — touch or drag anywhere on the field. The reticle is your finger; the operator moves on their own.<br><br>
+      <b>FIRE</b> — tap the field to shoot exactly where you point. Keep holding to sustain fire; select-fire guns toggle SEMI/AUTO with F or the MODE button. Headshots drop hostiles instantly.<br><br>
       <b>COVER</b> — duck to become untouchable. You cannot fire from cover. Reload while covered.<br><br>
       <b>OVERWATCH</b> — scoped. Some targets must drop in the right order: never let a witness reach a radio.<br><br>
       <b>DEFUSAL</b> — cut the wires in the order the panel flashes. Wrong cuts cost time and blood.<br><br>
@@ -618,8 +620,8 @@ function startMission(idx){
   Audio2.ambient(true);
   toast(m.title+' — '+m.loc,2200);
   if(idx===0&&!SAVE.seenHow){ SAVE.seenHow=true; persist();
-    setTimeout(()=>toast('DRAG anywhere to AIM',2000),2600);
-    setTimeout(()=>toast('Hold FIRE — controlled taps stay tight',2200),5200);
+    setTimeout(()=>toast('TAP the field to SHOOT — drag to aim',2000),2600);
+    setTimeout(()=>toast('Controlled taps keep the reticle tight',2200),5200);
     setTimeout(()=>toast('Aim for the HEAD — instant drops',2200),8200);
     setTimeout(()=>toast('COVER to duck · pop out STEADY',2400),11200);
   }
@@ -635,8 +637,12 @@ function startHoldout(){
   nextWave();
 }
 function equip(wid){
-  G.wpn=WEAPONS[wid]||WEAPONS.p9; G.ammo=G.wpn.mag; reloading=false; G.bloom=0;
-  $('wpnName').textContent=G.wpn.name; updateAmmo();
+  G.wpn=WEAPONS[wid]||WEAPONS.p9; G.ammo=G.wpn.mag; reloading=false; G.bloom=0; G.semiMode=false;
+  syncWeaponHud(); updateAmmo();
+}
+function syncWeaponHud(){
+  $('wpnName').textContent=G.wpn.name+(G.wpn.auto?(G.semiMode?' ·SEMI':' ·AUTO'):'');
+  const bm=$('btnMode'); bm.style.display=G.wpn.auto?'flex':'none'; bm.textContent=G.semiMode?'SEMI':'AUTO';
 }
 function updateAmmo(){ const el=$('ammoCount'); el.textContent=(reloading?'--':G.ammo)+'/'+G.wpn.mag; el.classList.toggle('low',!reloading&&G.ammo<=G.wpn.mag*0.25); }
 function loadStop(i){
@@ -763,7 +769,7 @@ function fire(){
   if(now-G.fireT<60000/G.wpn.rpm)return;
   if(G.ammo<=0){ Audio2.dryFire(); startReload(); return; }
   G.fireT=now; G.ammo--; G.shots++;
-  G.bloom=Math.min(1,G.bloom+(G.wpn.auto?0.16:0.28));
+  G.bloom=Math.min(1,G.bloom+((G.wpn.auto&&!G.semiMode)?0.16:0.28));
   gunKick=1; muzzleT=0.06; G.shake=Math.min(1,G.shake+0.08);
   Audio2.shot(G.wpn.kind);
   shell(W*0.66,H*0.8);
@@ -884,7 +890,7 @@ function tick(now){
     if(e.state==='dying'&&e.t>=0.5){ e.state='dead'; }
   }
   // autofire
-  if(G.firing&&G.wpn.auto) fire();
+  if(G.firing&&G.wpn.auto&&!G.semiMode) fire();
   // stop clear?
   if(!anyAlive&&G.spawnQueue.length===0&&!G.over){
     if(G.kills>0)G.slowmo=0.55;
@@ -1087,25 +1093,30 @@ $('btnPause').onclick=()=>{ if(G.screen!=='play')return; G.paused=true; showScre
 /* ============ input ============ */
 function setAim(x,y){ aim.x=clamp(x,0,W); aim.y=clamp(y,0,H); }
 document.addEventListener('pointermove',e=>{ if(G.screen==='play') setAim(e.clientX,e.clientY); },{passive:true});
+function updFiring(){ G.firing=!!(G.fieldHeld||G.btnHeld); }
 cv.addEventListener('pointerdown',e=>{
   Audio2.init(); Audio2.resume();
   if(G.screen!=='play')return;
   setAim(e.clientX,e.clientY);
   if(G.defuse){ defuseTap(e.clientX,e.clientY); return; }
-  if(e.pointerType==='mouse'){ fire(); }
+  G.fieldHeld=true; updFiring(); fire();   // Sierra 7 scheme: tap the field to shoot exactly where you point
 },{passive:true});
+['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>{ if(G.fieldHeld){ G.fieldHeld=false; updFiring(); } }));
 $('btnFire').addEventListener('pointerdown',e=>{ e.preventDefault(); Audio2.init(); Audio2.resume();
-  if(G.screen!=='play')return; G.firing=true; fire(); });
-['pointerup','pointercancel','pointerleave'].forEach(ev=>$('btnFire').addEventListener(ev,()=>{G.firing=false;}));
+  if(G.screen!=='play')return; G.btnHeld=true; updFiring(); fire(); });
+['pointerup','pointercancel','pointerleave'].forEach(ev=>$('btnFire').addEventListener(ev,()=>{G.btnHeld=false; updFiring();}));
 function toggleCover(){ G.cover=!G.cover; $('btnCover').classList.toggle('down',G.cover);
   if(!G.cover)G.steadyT=0.8; Audio2.beep(G.cover?300:500,0.06); }
 $('btnCover').addEventListener('pointerdown',e=>{ e.preventDefault(); if(G.screen==='play')toggleCover(); });
 $('btnReload').addEventListener('pointerdown',e=>{ e.preventDefault(); if(G.screen==='play')startReload(); });
+function toggleFireMode(){ if(!G.wpn.auto)return; G.semiMode=!G.semiMode; toast(G.semiMode?'SEMI':'AUTO',900); Audio2.beep(G.semiMode?440:660,0.05); syncWeaponHud(); }
+$('btnMode').addEventListener('pointerdown',e=>{ e.preventDefault(); if(G.screen==='play')toggleFireMode(); });
 document.addEventListener('keydown',e=>{
   if(G.screen!=='play')return;
   if(e.code==='Space'){ e.preventDefault(); toggleCover(); }
   if(e.code==='KeyR')startReload();
-  if(e.code==='KeyP')$('btnPause').click();
+  if(e.code==='KeyF')toggleFireMode();
+  if(e.code==='KeyP'||e.code==='ArrowDown')$('btnPause').click();
 });
 document.addEventListener('pointerdown',()=>{ Audio2.init(); Audio2.resume(); },{once:true});
 /* debug/test hook (harmless, local single-player) */
@@ -1113,7 +1124,7 @@ window.K9={G,aim,WEAPONS,MISSIONS,fire,startMission,startHoldout,defuseTap,loadS
 /* ============ boot ============ */
 loadSave();
 Audio2.enabled=SAVE.sound;
-$('menuMeta').textContent=SAVE.holdoutBest?('Holdout best: wave '+SAVE.holdoutBest):'Drag to aim · tap FIRE · use COVER';
+$('menuMeta').textContent=SAVE.holdoutBest?('Holdout best: wave '+SAVE.holdoutBest):'Tap the field to shoot · drag to aim · COVER to duck';
 showScreen('menu');
 requestAnimationFrame(t=>{lastT=t;requestAnimationFrame(tick);});
 </script>
