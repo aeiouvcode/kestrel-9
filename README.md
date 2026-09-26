@@ -12,8 +12,8 @@ Work through a classified field program of short missions: close-quarters rooms,
 
 ## Controls
 
-- **Aim:** drag anywhere on the field
-- **Fire:** hold FIRE (or click the field on desktop). Headshots drop hostiles instantly
+- **Aim:** touch or drag anywhere on the field - the reticle is your finger
+- **Fire:** tap the field to shoot exactly where you point; keep holding to sustain auto fire. Select-fire guns toggle SEMI/AUTO with the MODE button (or F on desktop). Headshots drop hostiles instantly
 - **Cover:** duck to become untouchable. You cannot fire from cover; reload there
 - **Defusal:** cut wires in the order the panel flashes
 
